@@ -1,0 +1,66 @@
+@host =http://localhost:3000
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJzdHUwMDEiLCJpYXQiOjE3OTIyMjY5NTQsImV4cCI6MTc5MjMxMzM1NH0.jthnbpwSZNxYYZNjDKXf7AJXxtvyIf6uiSSASWf2yk4
+#注册请求
+POST http://localhost:3000/register
+Content-Type: application/json
+
+{
+    "username":"stu001",
+    "password":"123456",
+    "nickname":"测试用户1"
+}
+
+###
+#登录请求
+POST http://localhost:3000/login
+Content-Type: application/json
+
+{
+    "username":"stu001",
+    "password":"123456"
+}
+
+###
+
+#发帖子请求
+POST http://localhost:3000/post
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "title": "你好世界",
+  "content": "我来见你了"
+}
+
+
+###
+#评论请求
+POST http://localhost:3000/comment
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "postId": 3,
+  "content": "第一条评论，测试一下"
+}
+
+
+###
+#获取帖子详情
+GET http://localhost:3000/comments/3
+
+
+###
+#点赞请求
+POST http://localhost:3000/like
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "postId": 3
+}
+
+
+###
+
+
