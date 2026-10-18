@@ -11,6 +11,13 @@
         </el-form-item>
         <el-form-item label="昵称">
           <el-input v-model="registerForm.nickname" placeholder="请输入昵称" />
+                  <!-- 新增的性别选择 -->
+        <el-form-item label="性别">
+          <el-radio-group v-model="registerForm.gender">
+            <el-radio value="male">男</el-radio>
+            <el-radio value="female">女</el-radio>
+          </el-radio-group>
+        </el-form-item>
         </el-form-item>
         <el-button type="success" class="register-btn" @click="handleRegister" :loading="loading">
           注 册
@@ -34,6 +41,7 @@ const loading = ref(false)
 const registerForm = ref({
   username: '',
   password: '',
+  gender: 'male', // 默认性别为男
   nickname: ''
 })
 

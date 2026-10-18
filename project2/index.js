@@ -1,3 +1,6 @@
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
@@ -10,6 +13,7 @@ const port = 3000;
 // 中间件
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // JWT 认证中间件
 function auth(req, res, next) {
   const raw = req.headers.authorization;
@@ -35,6 +39,22 @@ const pool = mysql.createPool({
   connectionLimit: 10
 });
 
+// 确保上传目录存在
+const uploadDir = path.join(__dirname, 'uploads', 'avatars');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    // 文件名：user_用户id_时间戳.png，避免重复
+    cb(null, `user_${req.user.id}_${Date.now()}.png`);
+  }
+});
+const upload = multer({ storage });
+
+
 // 测试数据库连通接口
 app.get('/db-test', async (req, res) => {
   try {
@@ -49,20 +69,30 @@ app.get('/db-test', async (req, res) => {
 // 注册接口 POST /register
 app.post('/register', async (req, res) => {
   try {
-    const {username, password, nickname} = req.body;
+    // 1. 接收前端传过来的 gender
+    const { username, password, nickname, gender } = req.body;
     
-    // 先检查用户名是否已存在
+    // 2. 检查用户名是否已存在
     const [existing] = await pool.query('SELECT id FROM `user` WHERE username=?', [username]);
     if(existing.length > 0){
-      return res.status(409).send({msg:"用户名已被注册，请更换"});  // 409 Conflict
+      return res.status(409).send({msg:"用户名已被注册，请更换"});
     }
     
-    // 不存在才继续注册
+    // 3. 密码加密
     const salt = await bcrypt.genSalt(10);
     const hashPwd = await bcrypt.hash(password, salt);
+    
+    // 4. 根据性别设置默认头像路径
+    let defaultAvatar = '/uploads/avatars/default-avatar.png'; // 没选性别时的默认图
+    if (gender === 'male') {
+      defaultAvatar = '/uploads/avatars/default-boy.png'; // 对应男生图
+    } else if (gender === 'female') {
+      defaultAvatar = '/uploads/avatars/default-girl.png'; // 对应女生图
+    }
+    // 5. 插入数据库（加上 gender 和 avatar）
     const [result] = await pool.query(
-      'INSERT INTO `user`(username, password, nickname) VALUES (?,?,?)',
-      [username, hashPwd, nickname]
+      'INSERT INTO `user`(username, password, nickname, gender, avatar) VALUES (?,?,?,?,?)',
+      [username, hashPwd, nickname, gender || 'male', defaultAvatar]
     );
     res.send({msg:"注册成功", userId: result.insertId});
   } catch(err){
@@ -86,13 +116,43 @@ app.post('/login', async (req, res) => {
     if(!ok){
       return res.status(400).send({msg:"密码错误"})
     }
-    // 生成jwt令牌
+    
+    // 生成jwt令牌 (只声明一次 token)
     const token = jwt.sign({id:user.id, username:user.username}, 'my_secret_key', {expiresIn:'24h'})
-    res.send({msg:"登录成功", token, user:{id:user.id, username:user.username, nickname:user.nickname}})
+    
+    // 返回给前端的数据
+    res.send({
+      msg: "登录成功", 
+      token, 
+      user: {
+        id: user.id, 
+        username: user.username, 
+        nickname: user.nickname,
+        avatar: user.avatar,  // 带上头像
+        gender: user.gender   // 带上性别
+      }
+    })
   } catch(err){
     res.status(500).send({msg:"登录失败", error:err.message})
   }
 })
+
+
+// 上传头像（需要登录）
+app.post('/upload-avatar', auth, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ msg: '没有收到文件' });
+    }
+    // 数据库存相对路径，方便前端拼接
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    await pool.query('UPDATE `user` SET avatar = ? WHERE id = ?', [avatarPath, req.user.id]);
+    res.json({ code: 200, msg: '上传成功', avatar: avatarPath });
+  } catch (err) {
+    res.status(500).json({ msg: '上传失败', error: err.message });
+  }
+});
+
 
 
 // 接口3：帖子详情（无需登录）

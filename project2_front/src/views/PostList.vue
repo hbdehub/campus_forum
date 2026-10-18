@@ -5,10 +5,36 @@
       <div class="logo">校园论坛</div>
       <div class="user-info">
         <span class="welcome">欢迎，{{ userInfo.nickname || userInfo.username }}</span>
+        
+        <!-- 头像，点击打开弹窗 -->
+        <el-avatar 
+          :size="40" 
+          :src="userInfo.avatar ? '/api' + userInfo.avatar : ''" 
+          style="cursor: pointer; background-color: #409eff;"
+          @click="dialogVisible = true"
+        >
+          {{ userInfo.nickname ? userInfo.nickname[0] : 'U' }}
+        </el-avatar>
+
         <el-button type="primary" @click="goToCreate">发 帖</el-button>
         <el-button type="danger" plain @click="handleLogout">退出</el-button>
       </div>
     </el-header>
+
+    <!-- 修改头像的弹窗（放在导航栏和主体之间） -->
+    <el-dialog v-model="dialogVisible" title="修改头像" width="400px" align-center>
+      <el-upload
+        class="avatar-uploader"
+        action="/api/upload-avatar"
+        :headers="{ Authorization: 'Bearer ' + localStorage.getItem('token') }"
+        :show-file-list="false"
+        :on-success="handleAvatarSuccess"
+        :before-upload="beforeAvatarUpload"
+      >
+        <img v-if="imageUrl" :src="imageUrl" class="avatar" />
+        <div v-else class="avatar-uploader-icon">点击上传</div>
+      </el-upload>
+    </el-dialog>
 
     <!-- 主体内容区 -->
     <el-main class="main-content" v-loading="loading">
@@ -61,6 +87,37 @@ const posts = ref([])    // 存放帖子列表
 const loading = ref(false) // 控制加载动画
 // 获取本地保存的用户信息
 const userInfo = ref(JSON.parse(localStorage.getItem('user')) || {})
+// --- 新增的头像上传逻辑 ---
+const dialogVisible = ref(false) // 控制弹窗显示
+const imageUrl = ref(userInfo.value.avatar ? '/api' + userInfo.value.avatar : '') // 预览图
+
+// 上传成功后的回调
+const handleAvatarSuccess = (response) => {
+  if (response.code === 200) {
+    ElMessage.success('头像修改成功')
+    // 更新页面和本地存储的数据
+    userInfo.value.avatar = response.avatar
+    imageUrl.value = '/api' + response.avatar
+    localStorage.setItem('user', JSON.stringify(userInfo.value))
+    dialogVisible.value = false
+  } else {
+    ElMessage.error(response.msg || '上传失败')
+  }
+}
+
+// 上传前校验图片格式和大小
+const beforeAvatarUpload = (file) => {
+  const isImage = file.type === 'image/jpeg' || file.type === 'image/png'
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isImage) {
+    ElMessage.error('头像只能是 JPG 或 PNG 格式!')
+  }
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB!')
+  }
+  return isImage && isLt2M
+}
+// --- 逻辑结束 ---
 
 // 1. 获取帖子列表的函数
 const fetchPosts = async () => {
@@ -185,5 +242,40 @@ const formatDate = (dateString) => {
 .post-stats {
   display: flex;
   gap: 15px;
+}
+/* 新增头像上传样式 */
+.avatar-uploader .el-upload {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: var(--el-transition-duration-fast);
+  width: 120px;
+  height: 120px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.avatar-uploader .el-upload:hover {
+  border-color: var(--el-color-primary);
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.avatar-uploader-icon {
+  font-size: 28px;
+  color: #8c939d;
+  width: 120px;
+  height: 120px;
+  line-height: 120px;
+  text-align: center;
 }
 </style>
